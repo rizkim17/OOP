@@ -12,7 +12,7 @@ def parse_log(log_line):
     parts = log_line.split(' - ')
     
     datetime_part = parts[0]
-    time = datetime_part.split()[1]  # Mengambil bagian waktu (HH:MM:SS)
+    time = datetime_part.split()[1] 
     level = parts[1]
     user_ip_part = parts[2]
     username_start = user_ip_part.find("'") + 1
