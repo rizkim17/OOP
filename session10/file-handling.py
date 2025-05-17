@@ -1,196 +1,194 @@
+import os
+import sys
 
-class Buku:
-    def __init__(self, id, judul, penulis, tahun_terbit):
-        self.id = id
-        self.judul = judul
-        self.penulis = penulis
-        self.tahun_terbit = tahun_terbit
-        self.dipinjam = False
-
-    def __str__(self):
-        status = "Dipinjam" if self.dipinjam else "Tersedia"
-        return f"ID: {self.id}, Judul: {self.judul}, Penulis: {self.penulis}, Tahun: {self.tahun_terbit}, Status: {status}"
-
-
-class Perpustakaan:
+class FileReader:
+    """
+    Kelas untuk membaca berbagai jenis file teks dengan penanganan exception yang tepat
+    """
+    
     def __init__(self):
-        self.daftar_buku = []
+        self.supported_extensions = ['.txt', '.csv']
+        self.content = None
+        self.filepath = None
     
-    def tambah_buku(self, buku):
-        self.daftar_buku.append(buku)
-        print(f"Buku '{buku.judul}' berhasil ditambahkan.")
-    
-    def cari_buku(self, id_buku):
-        for buku in self.daftar_buku:
-            if buku.id == id_buku:
-                return buku
-        raise ValueError(f"Buku dengan ID {id_buku} tidak ditemukan")
-    
-    def pinjam_buku(self, id_buku):
-        try:
-            buku = self.cari_buku(id_buku)
-            if buku.dipinjam:
-                raise Exception(f"Buku '{buku.judul}' sudah dipinjam")
-            buku.dipinjam = True
-            print(f"Buku '{buku.judul}' berhasil dipinjam")
-        except ValueError as e:
-            print(f"Error: {e}")
-        except Exception as e:
-            print(f"Error: {e}")
-    
-    def kembalikan_buku(self, id_buku):
-        try:
-            buku = self.cari_buku(id_buku)
-            if not buku.dipinjam:
-                raise Exception(f"Buku '{buku.judul}' tidak sedang dipinjam")
-            buku.dipinjam = False
-            print(f"Buku '{buku.judul}' berhasil dikembalikan")
-        except ValueError as e:
-            print(f"Error: {e}")
-        except Exception as e:
-            print(f"Error: {e}")
-    
-    def tampilkan_semua_buku(self):
-        if not self.daftar_buku:
-            print("Tidak ada buku dalam perpustakaan")
-            return
+    def read_file(self, filepath):
+        """
+        Membaca file dan menangani berbagai exception yang mungkin terjadi
+        """
+        self.filepath = filepath
+        self.content = None
         
-        print("\nDaftar Buku dalam Perpustakaan:")
-        for buku in self.daftar_buku:
-            print(buku)
-    
-    def simpan_ke_file(self, nama_file):
+        # Periksa apakah file ada
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"File '{filepath}' tidak ditemukan.")
+        
+        # Periksa ekstensi file
+        _, ext = os.path.splitext(filepath.lower())
+        if ext not in self.supported_extensions:
+            raise ValueError(f"Format file '{ext}' tidak didukung. Format yang didukung: {', '.join(self.supported_extensions)}")
+        
         try:
-            with open(nama_file, 'w') as file:
-                for buku in self.daftar_buku:
-                    status = "1" if buku.dipinjam else "0"
-                    file.write(f"{buku.id},{buku.judul},{buku.penulis},{buku.tahun_terbit},{status}\n")
-            print(f"Data berhasil disimpan ke {nama_file}")
+            # Coba membuka dan membaca file
+            with open(filepath, 'r', encoding='utf-8') as file:
+                self.content = file.read()
+            return self.content
         except PermissionError:
-            print(f"Error: Tidak memiliki izin untuk menulis ke file {nama_file}")
+            raise PermissionError(f"Tidak memiliki izin untuk membaca file '{filepath}'")
+        except UnicodeDecodeError:
+            raise UnicodeDecodeError("utf-8", b"", 0, 1, f"File '{filepath}' tidak dapat didekode sebagai teks. File mungkin biner atau menggunakan encoding yang tidak didukung.")
         except Exception as e:
-            print(f"Error saat menyimpan data: {e}")
+            raise Exception(f"Terjadi kesalahan saat membaca file '{filepath}': {str(e)}")
     
-    def muat_dari_file(self, nama_file):
+    def validate_txt_format(self, expected_format):
+        """
+        Memvalidasi format file teks berdasarkan kriteria yang ditentukan
+        expected_format: fungsi yang menerima konten file dan mengembalikan True jika valid
+        """
+        if self.content is None:
+            raise ValueError("Tidak ada konten file yang dimuat. Panggil read_file terlebih dahulu.")
+        
+        valid = expected_format(self.content)
+        if not valid:
+            raise ValueError(f"Format data dalam file '{self.filepath}' tidak sesuai dengan yang diharapkan.")
+        
+        return True
+    
+    def read_csv_as_list(self, delimiter=','):
+        """
+        Membaca file CSV dan mengembalikan dalam bentuk list of lists
+        """
+        if self.content is None:
+            raise ValueError("Tidak ada konten file yang dimuat. Panggil read_file terlebih dahulu.")
+        
+        lines = self.content.strip().split('\n')
+        data = []
+        
         try:
-            self.daftar_buku = []  # Reset daftar buku
-            with open(nama_file, 'r') as file:
-                for baris in file:
-                    try:
-                        data = baris.strip().split(',')
-                        if len(data) != 5:
-                            raise ValueError(f"Format data tidak valid: {baris}")
-                        
-                        id_buku = data[0]
-                        judul = data[1]
-                        penulis = data[2]
-                        
-                        try:
-                            tahun_terbit = int(data[3])
-                        except ValueError:
-                            print(f"Warning: Tahun terbit tidak valid untuk buku '{judul}', menggunakan 0")
-                            tahun_terbit = 0
-                        
-                        buku = Buku(id_buku, judul, penulis, tahun_terbit)
-                        buku.dipinjam = (data[4] == "1")
-                        self.daftar_buku.append(buku)
-                    except ValueError as e:
-                        print(f"Error saat membaca baris: {e}")
-                        continue
+            for i, line in enumerate(lines, 1):
+                if not line.strip():  # Lewati baris kosong
+                    continue
+                    
+                row = line.split(delimiter)
+                data.append(row)
             
-            print(f"Data berhasil dimuat dari {nama_file}")
-            print(f"Jumlah buku dimuat: {len(self.daftar_buku)}")
-        except FileNotFoundError:
-            print(f"Error: File {nama_file} tidak ditemukan")
-        except PermissionError:
-            print(f"Error: Tidak memiliki izin untuk membaca file {nama_file}")
+            return data
         except Exception as e:
-            print(f"Error saat memuat data: {e}")
+            raise ValueError(f"Gagal memproses baris {i} dari file CSV: {str(e)}")
 
 
 def menu():
-    print("\n==== Sistem Perpustakaan ====")
-    print("1. Tambah Buku")
-    print("2. Tampilkan Semua Buku")
-    print("3. Pinjam Buku")
-    print("4. Kembalikan Buku")
-    print("5. Simpan Data ke File")
-    print("6. Muat Data dari File")
+    """Menampilkan menu program"""
+    print("\n===== PROGRAM PEMBACA FILE =====")
+    print("1. Baca File Teks (.txt)")
+    print("2. Baca File CSV (.csv)")
+    print("3. Validasi Format File")
     print("0. Keluar")
     
     try:
-        pilihan = int(input("Pilih menu (0-6): "))
-        if pilihan < 0 or pilihan > 6:
-            raise ValueError("Menu tidak valid")
-        return pilihan
-    except ValueError as e:
-        print(f"Error: Masukan harus berupa angka 0-6")
+        choice = int(input("Pilih menu (0-3): "))
+        if choice < 0 or choice > 3:
+            raise ValueError()
+        return choice
+    except ValueError:
+        print("Error: Masukkan angka 0-3")
         return -1
 
 
 def main():
-    perpustakaan = Perpustakaan()
-    
-    # Tambahkan beberapa buku contoh
-    perpustakaan.tambah_buku(Buku("B001", "Python Programming", "John Smith", 2020))
-    perpustakaan.tambah_buku(Buku("B002", "Java Fundamentals", "Jane Doe", 2019))
-    perpustakaan.tambah_buku(Buku("B003", "Data Structures and Algorithms", "Robert Johnson", 2021))
+    reader = FileReader()
     
     while True:
-        pilihan = menu()
+        choice = menu()
         
-        if pilihan == 0:
-            print("Terima kasih telah menggunakan Sistem Perpustakaan!")
+        if choice == 0:
+            print("Terima kasih telah menggunakan program!")
             break
-        elif pilihan == 1:
+            
+        elif choice == 1:  # Baca file teks
             try:
-                id_buku = input("Masukkan ID Buku: ")
-                judul = input("Masukkan Judul Buku: ")
-                penulis = input("Masukkan Nama Penulis: ")
+                filepath = input("Masukkan path file teks (.txt): ")
+                content = reader.read_file(filepath)
+                print("\n===== ISI FILE =====")
+                print(content[:500])  # Tampilkan 500 karakter pertama
+                if len(content) > 500:
+                    print("...(terpotong)...")
+                print(f"\nBerhasil membaca file '{filepath}' ({len(content)} karakter)")
+            except Exception as e:
+                print(f"Error: {str(e)}")
+        
+        elif choice == 2:  # Baca file CSV
+            try:
+                filepath = input("Masukkan path file CSV (.csv): ")
+                reader.read_file(filepath)
                 
-                try:
-                    tahun_terbit = int(input("Masukkan Tahun Terbit: "))
-                    if tahun_terbit < 0 or tahun_terbit > 2030:
-                        raise ValueError("Tahun terbit tidak valid")
-                except ValueError:
-                    print("Error: Tahun terbit harus berupa angka yang valid")
-                    continue
+                # Tanyakan tentang delimiter
+                delimiter = input("Masukkan karakter delimiter (default ','): ") or ','
                 
-                buku_baru = Buku(id_buku, judul, penulis, tahun_terbit)
-                perpustakaan.tambah_buku(buku_baru)
+                data = reader.read_csv_as_list(delimiter)
+                
+                # Tampilkan data dalam format tabel sederhana
+                print("\n===== ISI FILE CSV =====")
+                max_rows_to_show = 10
+                
+                for i, row in enumerate(data[:max_rows_to_show]):
+                    print(f"Baris {i+1}: {row}")
+                
+                if len(data) > max_rows_to_show:
+                    print(f"...(dan {len(data) - max_rows_to_show} baris lainnya)")
+                
+                print(f"\nBerhasil membaca file CSV '{filepath}' ({len(data)} baris)")
             except Exception as e:
-                print(f"Error saat menambahkan buku: {e}")
+                print(f"Error: {str(e)}")
         
-        elif pilihan == 2:
-            perpustakaan.tampilkan_semua_buku()
-        
-        elif pilihan == 3:
+        elif choice == 3:  # Validasi format file
             try:
-                id_buku = input("Masukkan ID Buku untuk dipinjam: ")
-                perpustakaan.pinjam_buku(id_buku)
+                filepath = input("Masukkan path file untuk divalidasi: ")
+                reader.read_file(filepath)
+                
+                print("\nPilih jenis validasi:")
+                print("1. File tidak kosong")
+                print("2. Berisi kata kunci tertentu")
+                print("3. Validasi jumlah baris")
+                
+                validation_type = int(input("Pilih jenis validasi (1-3): "))
+                
+                if validation_type == 1:
+                    # Validasi file tidak kosong
+                    def not_empty(content):
+                        return len(content.strip()) > 0
+                    
+                    reader.validate_txt_format(not_empty)
+                    print("Validasi berhasil: File tidak kosong")
+                
+                elif validation_type == 2:
+                    # Validasi berisi kata kunci
+                    keyword = input("Masukkan kata kunci yang harus ada: ")
+                    
+                    def contains_keyword(content):
+                        return keyword.lower() in content.lower()
+                    
+                    if reader.validate_txt_format(contains_keyword):
+                        print(f"Validasi berhasil: File berisi kata kunci '{keyword}'")
+                
+                elif validation_type == 3:
+                    # Validasi jumlah baris
+                    try:
+                        min_lines = int(input("Masukkan jumlah baris minimum: "))
+                        
+                        def has_min_lines(content):
+                            lines = content.split('\n')
+                            return len(lines) >= min_lines
+                        
+                        if reader.validate_txt_format(has_min_lines):
+                            print(f"Validasi berhasil: File memiliki minimal {min_lines} baris")
+                    except ValueError:
+                        print("Error: Masukkan angka untuk jumlah baris")
+                
+                else:
+                    print("Jenis validasi tidak valid")
+            
             except Exception as e:
-                print(f"Error saat meminjam buku: {e}")
-        
-        elif pilihan == 4:
-            try:
-                id_buku = input("Masukkan ID Buku untuk dikembalikan: ")
-                perpustakaan.kembalikan_buku(id_buku)
-            except Exception as e:
-                print(f"Error saat mengembalikan buku: {e}")
-        
-        elif pilihan == 5:
-            try:
-                nama_file = input("Masukkan nama file untuk menyimpan data: ")
-                perpustakaan.simpan_ke_file(nama_file)
-            except Exception as e:
-                print(f"Error: {e}")
-        
-        elif pilihan == 6:
-            try:
-                nama_file = input("Masukkan nama file untuk memuat data: ")
-                perpustakaan.muat_dari_file(nama_file)
-            except Exception as e:
-                print(f"Error: {e}")
+                print(f"Error: {str(e)}")
 
 
 if __name__ == "__main__":
@@ -199,5 +197,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nProgram dihentikan oleh pengguna")
     except Exception as e:
-        print(f"Terjadi kesalahan yang tidak terduga: {e}")
+        print(f"Terjadi kesalahan yang tidak terduga: {str(e)}")
         print("Program dihentikan")
